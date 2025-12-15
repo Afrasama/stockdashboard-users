@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Stock broker client dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- auth card -->
+      <div id="login-card" class="card">
+        <h1 id="auth-title">Login</h1>
+        <p class="subtitle">
+          Login with your registered Email and Password or create a new account.
+        </p>
+        <form id="login-form">
+          <label for="email-input">Email address</label>
+          <input
+            type="email"
+            id="email-input"
+            placeholder="you@example.com"
+            required
+          />
+
+          <label for="password-input">Password</label>
+          <input
+            type="password"
+            id="password-input"
+            placeholder="••••••••"
+            required
+          />
+
+          <button type="submit" id="auth-submit-btn">login</button>
+          <p id="login-error" class="error-message"></p>
+
+          <p class="switch-text">
+            <span id="switch-label">Don't have an account?</span>
+            <button type="button" id="switch-auth-btn" class="link-btn">
+              Register
+            </button>
+          </p>
+        </form>
+      </div>
+
+      <!-- dashboard card -->
+      <div id="dashboard-card" class="card hidden">
+        <div class="dashboard-header">
+          <div>
+            <h2>Your dashboard</h2>
+            <p id="user-email" class="subtitle"></p>
+          </div>
+          <button id="logout-btn" class="secondary-btn">Logout</button>
+        </div>
+
+        <div class="flex-row">
+          <!-- available stocks -->
+          <div class="panel">
+            <h3>Available stocks</h3>
+            <p class="hint">Click subscribe to add to your watchlist</p>
+            <div id="stocks-list"></div>
+          </div>
+
+          <!-- subscriptions -->
+          <div class="panel">
+            <h3>Your subscriptions</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Latest price</th>
+                  <th>Last updated</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="subscriptions-table-body"></tbody>
+            </table>
+            <p class="hint small-text">
+              Open this page in two different browsers, login with different
+              users and subscribe to different stocks to see asynchronous
+              live updates.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>
