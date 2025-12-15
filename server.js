@@ -14,11 +14,11 @@ const io = new Server(server);
 
 app.use(express.static("public"));
 
-// ---------- mongo setup (atlas only) ----------
+// ---------- mongo setup (FINAL FIX) ----------
 const mongoUri = process.env.MONGODB_URI;
 
 if (!mongoUri) {
-  console.error("❌ MONGODB_URI not set");
+  console.error("❌ MONGODB_URI is not defined");
   process.exit(1);
 }
 
@@ -26,11 +26,10 @@ console.log("👉 connecting to mongodb atlas...");
 
 mongoose
   .connect(mongoUri)
-  .then(() => {
-    console.log("✅ connected to mongodb atlas");
-  })
+  .then(() => console.log("✅ connected to mongodb atlas"))
   .catch((err) => {
     console.error("❌ mongo connection error:", err);
+    process.exit(1);
   });
 
 // ---------- user schema ----------
@@ -49,65 +48,49 @@ const User = mongoose.model("User", userSchema);
 const SUPPORTED_STOCKS = ["GOOG", "TSLA", "AMZN", "META", "NVDA"];
 
 const stockPrices = {};
-SUPPORTED_STOCKS.forEach((sym) => {
-  stockPrices[sym] = 100 + Math.random() * 100;
-});
+SUPPORTED_STOCKS.forEach((s) => (stockPrices[s] = 100 + Math.random() * 100));
 
-// socket.id -> { email }
 const clients = {};
 
 // ---------- socket handlers ----------
 io.on("connection", (socket) => {
   console.log("🔌 client connected:", socket.id);
-
   clients[socket.id] = { email: null };
 
-  // ----- register -----
   socket.on("register", async ({ email, password }) => {
     try {
-      if (!email || !email.includes("@")) {
-        return socket.emit("register_error", "invalid email");
-      }
-      if (!password || password.length < 6) {
-        return socket.emit(
-          "register_error",
-          "password must be at least 6 characters"
-        );
-      }
+      if (!email || !password) return;
 
-      const existing = await User.findOne({ email });
-      if (existing) {
-        return socket.emit("register_error", "user already exists");
+      const exists = await User.findOne({ email });
+      if (exists) {
+        socket.emit("register_error", "user already exists");
+        return;
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
-
       await User.create({ email, passwordHash });
 
-      console.log("🆕 registered:", email);
       socket.emit("register_success", "registration successful");
     } catch (err) {
-      console.error("register error:", err);
       socket.emit("register_error", "server error");
     }
   });
 
-  // ----- login -----
   socket.on("login", async ({ email, password }) => {
     try {
       const user = await User.findOne({ email });
       if (!user) {
-        return socket.emit("login_error", "user not found");
+        socket.emit("login_error", "user not found");
+        return;
       }
 
       const ok = await bcrypt.compare(password, user.passwordHash);
       if (!ok) {
-        return socket.emit("login_error", "incorrect password");
+        socket.emit("login_error", "incorrect password");
+        return;
       }
 
       clients[socket.id].email = email;
-
-      console.log("✅ login:", email);
 
       socket.emit("login_success", {
         email,
@@ -116,62 +99,49 @@ io.on("connection", (socket) => {
 
       socket.emit("subscribed", user.subscriptions);
     } catch (err) {
-      console.error("login error:", err);
       socket.emit("login_error", "server error");
     }
   });
 
-  // ----- subscribe -----
   socket.on("subscribe", async (symbol) => {
-    const client = clients[socket.id];
-    if (!client?.email) return;
+    const email = clients[socket.id]?.email;
+    if (!email) return;
 
     const user = await User.findOneAndUpdate(
-      { email: client.email },
+      { email },
       { $addToSet: { subscriptions: symbol } },
       { new: true }
     );
 
-    if (user) socket.emit("subscribed", user.subscriptions);
+    socket.emit("subscribed", user.subscriptions);
   });
 
-  // ----- unsubscribe -----
   socket.on("unsubscribe", async (symbol) => {
-    const client = clients[socket.id];
-    if (!client?.email) return;
+    const email = clients[socket.id]?.email;
+    if (!email) return;
 
     const user = await User.findOneAndUpdate(
-      { email: client.email },
+      { email },
       { $pull: { subscriptions: symbol } },
       { new: true }
     );
 
-    if (user) socket.emit("subscribed", user.subscriptions);
-  });
-
-  socket.on("request_initial_prices", () => {
-    socket.emit("initial_prices", stockPrices);
+    socket.emit("subscribed", user.subscriptions);
   });
 
   socket.on("disconnect", () => {
-    console.log("🔌 client disconnected:", socket.id);
     delete clients[socket.id];
+    console.log("🔌 client disconnected:", socket.id);
   });
 });
 
-// ---------- stock price updates ----------
+// ---------- price updates ----------
 setInterval(() => {
   const time = new Date().toISOString();
 
-  SUPPORTED_STOCKS.forEach((sym) => {
-    const delta = (Math.random() - 0.5) * 2;
-    stockPrices[sym] = Math.max(1, stockPrices[sym] + delta);
-
-    io.emit("price_update", {
-      symbol: sym,
-      price: stockPrices[sym],
-      time,
-    });
+  SUPPORTED_STOCKS.forEach((s) => {
+    stockPrices[s] += (Math.random() - 0.5) * 2;
+    io.emit("price_update", { symbol: s, price: stockPrices[s], time });
   });
 }, 1000);
 
